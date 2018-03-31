@@ -1,0 +1,98 @@
+version: '2'
+services:
+  # git gogs server
+  git_server:
+    image: gogs/gogs
+    container_name: git_server
+    ports:
+     - "3000:3000"
+     - "10022:22"
+    volumes_from:
+     - git_serverdata
+    links:
+     - git_db:mysql
+  # gogs data container
+  git_serverdata:
+    image: busybox
+    container_name: git_serverdata
+    command: /bin/sh
+    volumes:
+      - /data
+  # gogs backend - mariadb
+  git_db:
+    image: mariadb
+    volumes_from:
+      - git_dbdata
+    ports:
+     - 3306
+    environment:
+     - MYSQL_ROOT_PASSWORD=root
+     - MYSQL_DATABASE=gogs
+     - MYSQL_USER=gogs
+     - MYSQL_PASSWORD=gogs
+  # gogs db data container
+  git_dbdata:
+    image: busybox
+    command: /bin/sh
+    volumes:
+      - /var/lib/mysql
+  # artifactory
+  artifactory:
+    image: docker.bintray.io/jfrog/artifactory-oss:5.10.1
+    container_name: artifactory
+    ports:
+     - 80:8081
+    depends_on:
+     - postgresql
+    links:
+     - postgresql
+    volumes_from:
+     - artifactory_dbdata
+    # volumes:
+    #  - /data/artifactory:/var/opt/jfrog/artifactory
+    environment:
+     - DB_TYPE=postgresql
+     # The following must match the POSTGRES_USER and POSTGRES_PASSWORD values passed to PostgreSQL
+     - DB_USER=artifactory
+     - DB_PASSWORD=password
+     # Add extra Java options by uncommenting the following line
+     #- EXTRA_JAVA_OPTIONS=-Xmx4g
+    restart: always
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 32000
+        hard: 40000
+  # artifactory data container
+  artifactory_dbdata:
+    image: busybox
+    command: /bin/sh
+    volumes:
+      - /var/opt/jfrog/artifactory
+  # artifactory backend - postgres
+  postgresql:
+    image: docker.bintray.io/postgres:9.5.2
+    container_name: postgresql
+    ports:
+     - 5432:5432
+    environment:
+     - POSTGRES_DB=artifactory
+     # The following must match the DB_USER and DB_PASSWORD values passed to Artifactory
+     - POSTGRES_USER=artifactory
+     - POSTGRES_PASSWORD=password
+    volumes_from:
+     - postgres_dbdata
+    # volumes:
+    #  - /data/postgresql:/var/lib/postgresql/data
+    restart: always
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 32000
+        hard: 40000
+  # postgres data container
+  postgres_dbdata:
+    image: busybox
+    command: /bin/sh
+    volumes:
+      - /var/lib/postgresql/data
