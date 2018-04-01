@@ -21,6 +21,7 @@ services:
   # gogs backend - mariadb
   git_db:
     image: mariadb
+    container_name: git_db
     volumes_from:
       - git_dbdata
     ports:
@@ -33,6 +34,7 @@ services:
   # gogs db data container
   git_dbdata:
     image: busybox
+    container_name: git_dbdata
     command: /bin/sh
     volumes:
       - /var/lib/mysql
@@ -43,11 +45,11 @@ services:
     ports:
      - 80:8081
     depends_on:
-     - postgresql
+     - artifactory_db
     links:
-     - postgresql
+     - artifactory_db
     volumes_from:
-     - artifactory_dbdata
+     - artifactory_serverdata
     # volumes:
     #  - /data/artifactory:/var/opt/jfrog/artifactory
     environment:
@@ -64,15 +66,16 @@ services:
         soft: 32000
         hard: 40000
   # artifactory data container
-  artifactory_dbdata:
+  artifactory_serverdata:
     image: busybox
+    container_name: artifactory_serverdata
     command: /bin/sh
     volumes:
       - /var/opt/jfrog/artifactory
   # artifactory backend - postgres
-  postgresql:
+  artifactory_db:
     image: docker.bintray.io/postgres:9.5.2
-    container_name: postgresql
+    container_name: artifactory_db
     ports:
      - 5432:5432
     environment:
@@ -81,7 +84,7 @@ services:
      - POSTGRES_USER=artifactory
      - POSTGRES_PASSWORD=password
     volumes_from:
-     - postgres_dbdata
+     - artifactory_dbdata
     # volumes:
     #  - /data/postgresql:/var/lib/postgresql/data
     restart: always
@@ -91,8 +94,69 @@ services:
         soft: 32000
         hard: 40000
   # postgres data container
-  postgres_dbdata:
+  artifactory_dbdata:
     image: busybox
+    container_name: artifactory_dbdata
+    command: /bin/sh
+    volumes:
+      - /var/lib/postgresql/data
+  # sonarqube
+  sonarqube:
+    image: sonarqube
+    container_name: sonarqube
+    ports:
+      - "9000:9000"
+    # networks:
+    #   - sonarnet
+    depends_on:
+     - sonardb
+    environment:
+      - SONARQUBE_JDBC_URL=jdbc:postgresql://sonardb:5432/sonar
+    volumes_from:
+     - sonarqube_serverdata
+    # volumes:
+    #   - sonarqube_conf:/opt/sonarqube/conf
+    #   - sonarqube_data:/opt/sonarqube/data
+    #   - sonarqube_extensions:/opt/sonarqube/extensions
+    #   - sonarqube_bundled-plugins:/opt/sonarqube/lib/bundled-plugins
+  # sonarqube data container
+  sonarqube_serverdata:
+    image: busybox
+    container_name: sonarqube_serverdata
+    command: /bin/sh
+    volumes:
+      - /opt/sonarqube/conf
+      - /opt/sonarqube/data
+      - /opt/sonarqube/extensions
+      - /opt/sonarqube/lib/bundled-plugins
+  # artifactory backend - postgres
+  sonardb:
+    image: docker.bintray.io/postgres:9.5.2
+    container_name: sonardb
+    # networks:
+    #   - sonarnet
+    environment:
+      - POSTGRES_USER=sonar
+      - POSTGRES_PASSWORD=sonar
+    volumes_from:
+     - sonar_dbdata
+    # volumes:
+    #   - postgresql:/var/lib/postgresql
+    #   # This needs explicit mapping due to https://github.com/docker-library/postgres/blob/4e48e3228a30763913ece952c611e5e9b95c8759/Dockerfile.template#L52
+    #   - postgresql_data:/var/lib/postgresql/data
+    # networks:
+    #   sonarnet:
+    #     driver: bridge
+    # volumes:
+    #   sonarqube_conf:
+    #   sonarqube_data:
+    #   sonarqube_extensions:
+    #   sonarqube_bundled-plugins:
+    #   postgresql:
+    #   postgresql_data:
+  sonar_dbdata:
+    image: busybox
+    container_name: sonar_dbdata
     command: /bin/sh
     volumes:
       - /var/lib/postgresql/data
