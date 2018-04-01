@@ -1,5 +1,30 @@
 version: '2'
 services:
+  # portainer
+  proxy:
+    build: nginx/
+    container_name: "portainer-proxy"
+    ports:
+      - "80:80"
+  templates:
+    image: portainer/templates
+    container_name: "portainer-templates"
+  portainer:
+    image: portainer/portainer
+    container_name: "portainer-app"
+#Automatically choose 'Manage the Docker instance where Portainer is running' by adding <--host=unix:///var/run/docker.sock> to the command
+    command: --templates http://templates/templates.json
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    volumes_from:
+     - portainer_serverdata
+  # portainer data container
+  portainer_serverdata:
+    image: busybox
+    container_name: portainer_serverdata
+    command: /bin/sh
+    volumes:
+      - /data
   # jenkins
   jenkins:
     image: jenkins/jenkins:latest
@@ -12,9 +37,9 @@ services:
     environment:
       JENKINS_HOST_HOME: "/data/jenkins_home"
     ports:
-      - "80:8080"
+      - "8080:8080"
       - "443:443"
-  # gogs data container
+  # jenkins data container
   jenkins_serverdata:
     image: busybox
     container_name: jenkins_serverdata
