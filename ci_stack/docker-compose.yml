@@ -45,9 +45,9 @@ services:
     ports:
      - 80:8081
     depends_on:
-     - artifactory_db
+     - postgresql
     links:
-     - artifactory_db
+     - postgresql
     volumes_from:
      - artifactory_serverdata
     # volumes:
@@ -73,11 +73,11 @@ services:
     volumes:
       - /var/opt/jfrog/artifactory
   # artifactory backend - postgres
-  artifactory_db:
+  postgresql:
     image: docker.bintray.io/postgres:9.5.2
     container_name: artifactory_db
     ports:
-     - 5432:5432
+     - 5432
     environment:
      - POSTGRES_DB=artifactory
      # The following must match the DB_USER and DB_PASSWORD values passed to Artifactory
@@ -138,6 +138,8 @@ services:
     environment:
       - POSTGRES_USER=sonar
       - POSTGRES_PASSWORD=sonar
+    ports:
+     - 5432
     volumes_from:
      - sonar_dbdata
     # volumes:
