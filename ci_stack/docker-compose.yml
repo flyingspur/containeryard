@@ -1,19 +1,12 @@
+# portainer: 8080, jenkins: 8081, gogs: 8082, artifactory: 8083, sonarqube: 8084
 version: '2'
 services:
   # portainer
-  proxy:
-    build: nginx/
-    container_name: "portainer-proxy"
-    ports:
-      - "80:80"
-  templates:
-    image: portainer/templates
-    container_name: "portainer-templates"
   portainer:
     image: portainer/portainer
     container_name: "portainer-app"
-#Automatically choose 'Manage the Docker instance where Portainer is running' by adding <--host=unix:///var/run/docker.sock> to the command
-    command: --templates http://templates/templates.json
+    ports:
+      - "8080:9000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     volumes_from:
@@ -37,7 +30,7 @@ services:
     environment:
       JENKINS_HOST_HOME: "/data/jenkins_home"
     ports:
-      - "8080:8080"
+      - "8081:8080"
       - "443:443"
   # jenkins data container
   jenkins_serverdata:
@@ -51,7 +44,7 @@ services:
     image: gogs/gogs
     container_name: git_server
     ports:
-     - "3000:3000"
+     - "8082:3000"
      - "10022:22"
     volumes_from:
      - git_serverdata
@@ -71,7 +64,7 @@ services:
     volumes_from:
       - git_dbdata
     ports:
-     - 3306
+     - "3306:3306"
     environment:
      - MYSQL_ROOT_PASSWORD=root
      - MYSQL_DATABASE=gogs
@@ -89,7 +82,7 @@ services:
     image: docker.bintray.io/jfrog/artifactory-oss:5.10.1
     container_name: artifactory
     ports:
-     - 8081:8081
+     - 8083:8081
     depends_on:
      - postgresql
     links:
@@ -151,9 +144,7 @@ services:
     image: sonarqube
     container_name: sonarqube
     ports:
-      - "8082:9000"
-    # networks:
-    #   - sonarnet
+      - "8084:9000"
     depends_on:
      - sonardb
     environment:
@@ -174,8 +165,6 @@ services:
   sonardb:
     image: docker.bintray.io/postgres:9.5.2
     container_name: sonardb
-    # networks:
-    #   - sonarnet
     environment:
       - POSTGRES_USER=sonar
       - POSTGRES_PASSWORD=sonar
