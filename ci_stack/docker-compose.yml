@@ -1,10 +1,11 @@
-# portainer: 8080, jenkins: 8081, gogs: 8082, artifactory: 8083, sonarqube: 8084
+# portainer: 8080, jenkins: 8081, gogs: 8082, nexus: 8083, sonarqube: 8084
 version: '2'
 services:
   # portainer
   portainer:
     image: portainer/portainer
     container_name: "portainer-app"
+    network_mode: default
     ports:
       - "8080:9000"
     volumes:
@@ -15,6 +16,7 @@ services:
   portainer_serverdata:
     image: busybox
     container_name: portainer_serverdata
+    network_mode: default
     command: /bin/sh
     volumes:
       - /data
@@ -22,6 +24,7 @@ services:
   jenkins:
     image: jenkins/jenkins:latest
     container_name: jenkins
+    network_mode: default
     user: jenkins
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -36,13 +39,14 @@ services:
   jenkins_serverdata:
     image: busybox
     container_name: jenkins_serverdata
+    network_mode: default
     command: /bin/sh
     volumes:
-      - /data
-  # git gogs server
+      - data/
   git_server:
     image: gogs/gogs
     container_name: git_server
+    network_mode: default
     ports:
      - "8082:3000"
      - "10022:22"
@@ -54,6 +58,7 @@ services:
   git_serverdata:
     image: busybox
     container_name: git_serverdata
+    network_mode: default
     command: /bin/sh
     volumes:
       - /data
@@ -61,6 +66,7 @@ services:
   git_db:
     image: mariadb
     container_name: git_db
+    network_mode: default
     volumes_from:
       - git_dbdata
     ports:
@@ -74,72 +80,24 @@ services:
   git_dbdata:
     image: busybox
     container_name: git_dbdata
+    network_mode: default
     command: /bin/sh
     volumes:
       - /var/lib/mysql
-  # artifactory
-  artifactory:
-    image: docker.bintray.io/jfrog/artifactory-oss:5.10.1
-    container_name: artifactory
-    ports:
-     - 8083:8081
+  nexus-data:
+    image: sonatype/nexus3
+    network_mode: default
+    entrypoint:
+    - /bin/true
+  nexus:
+    image: sonatype/nexus3
+    network_mode: default
+    volumes_from:
+    - nexus-data
     depends_on:
-     - postgresql
-    links:
-     - postgresql
-    volumes_from:
-     - artifactory_serverdata
-    # volumes:
-    #  - /data/artifactory:/var/opt/jfrog/artifactory
-    environment:
-     - DB_TYPE=postgresql
-     # The following must match the POSTGRES_USER and POSTGRES_PASSWORD values passed to PostgreSQL
-     - DB_USER=artifactory
-     - DB_PASSWORD=password
-     # Add extra Java options by uncommenting the following line
-     #- EXTRA_JAVA_OPTIONS=-Xmx4g
-    restart: always
-    ulimits:
-      nproc: 65535
-      nofile:
-        soft: 32000
-        hard: 40000
-  # artifactory data container
-  artifactory_serverdata:
-    image: busybox
-    container_name: artifactory_serverdata
-    command: /bin/sh
-    volumes:
-      - /var/opt/jfrog/artifactory
-  # artifactory backend - postgres
-  postgresql:
-    image: docker.bintray.io/postgres:9.5.2
-    container_name: artifactory_db
+    - nexus-data
     ports:
-     - 5432
-    environment:
-     - POSTGRES_DB=artifactory
-     # The following must match the DB_USER and DB_PASSWORD values passed to Artifactory
-     - POSTGRES_USER=artifactory
-     - POSTGRES_PASSWORD=password
-    volumes_from:
-     - artifactory_dbdata
-    # volumes:
-    #  - /data/postgresql:/var/lib/postgresql/data
-    restart: always
-    ulimits:
-      nproc: 65535
-      nofile:
-        soft: 32000
-        hard: 40000
-  # postgres data container
-  artifactory_dbdata:
-    image: busybox
-    container_name: artifactory_dbdata
-    command: /bin/sh
-    volumes:
-      - /var/lib/postgresql/data
-  # sonarqube
+    - "8083:8081"
   sonarqube:
     image: sonarqube
     container_name: sonarqube
