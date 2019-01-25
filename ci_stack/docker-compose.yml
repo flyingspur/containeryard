@@ -1,5 +1,6 @@
+# apps and their ports:
 # portainer: 8080, jenkins: 8081, gogs: 8082, nexus: 8083, sonarqube: 8084
-version: '2'
+version: '3'
 services:
   # portainer
   portainer:
@@ -10,16 +11,7 @@ services:
       - "8080:9000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    volumes_from:
-     - portainer_serverdata
-  # portainer data container
-  portainer_serverdata:
-    image: busybox
-    container_name: portainer_serverdata
-    network_mode: default
-    command: /bin/sh
-    volumes:
-      - /data
+      - portainer_data:/data
   # jenkins
   jenkins:
     image: jenkins/jenkins:latest
@@ -28,21 +20,13 @@ services:
     user: jenkins
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    volumes_from:
-     - jenkins_serverdata
+      - jenkins_serverdata:/data
     environment:
       JENKINS_HOST_HOME: "/data/jenkins_home"
     ports:
       - "8081:8080"
       - "443:443"
-  # jenkins data container
-  jenkins_serverdata:
-    image: busybox
-    container_name: jenkins_serverdata
-    network_mode: default
-    command: /bin/sh
-    volumes:
-      - data/
+  # gogs git server
   git_server:
     image: gogs/gogs
     container_name: git_server
@@ -50,89 +34,56 @@ services:
     ports:
      - "8082:3000"
      - "10022:22"
-    volumes_from:
-     - git_serverdata
-    links:
-     - git_db:mysql
-  # gogs data container
-  git_serverdata:
-    image: busybox
-    container_name: git_serverdata
-    network_mode: default
-    command: /bin/sh
     volumes:
-      - /data
-  # gogs backend - mariadb
-  git_db:
-    image: mariadb
-    container_name: git_db
+     - gogs_conf:/data
+    links:
+     - db:mysql
+  # sonatype nexus
+  nexus:
+    image: sonatype/nexus3
+    container_name: nexus3
     network_mode: default
-    volumes_from:
-      - git_dbdata
+    volumes:
+      - "nexus-data:/nexus-data"
+    ports:
+      - "8083:8081"
+  # sonarqube
+  sonarqube:
+    container_name: sonarqube
+    image: sonarqube
+    network_mode: default
+    ports:
+      - "8084:9000"
+    links:
+      - db:mysql
+    environment:
+      - enviDB_USER=cisuer
+      - enviDB_PASS=cipass
+      - enviDB_NAME=cistack
+    volumes:
+      - sonarqube_conf:/opt/sonarqube/conf
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+  # common db
+  db:
+    image: mariadb
+    container_name: db
+    network_mode: default
+    volumes:
+      - gogs_conf:/var/lib/mysql
     ports:
      - "3306:3306"
     environment:
      - MYSQL_ROOT_PASSWORD=root
-     - MYSQL_DATABASE=gogs
-     - MYSQL_USER=gogs
-     - MYSQL_PASSWORD=gogs
-  # gogs db data container
-  git_dbdata:
-    image: busybox
-    container_name: git_dbdata
-    network_mode: default
-    command: /bin/sh
-    volumes:
-      - /var/lib/mysql
+     - MYSQL_DATABASE=cidb
+     - MYSQL_USER=ciuser
+     - MYSQL_PASSWORD=cipass
+volumes:
+  portainer_data:
+  jenkins_serverdata:
+  gogs_conf:
+  gogs_data:
+  sonarqube_conf:
+  sonarqube_data:
+  sonarqube_extensions:
   nexus-data:
-    image: sonatype/nexus3
-    network_mode: default
-    entrypoint:
-    - /bin/true
-  nexus:
-    image: sonatype/nexus3
-    network_mode: default
-    volumes_from:
-    - nexus-data
-    depends_on:
-    - nexus-data
-    ports:
-    - "8083:8081"
-  sonarqube:
-    image: sonarqube
-    container_name: sonarqube
-    ports:
-      - "8084:9000"
-    depends_on:
-     - sonardb
-    environment:
-      - SONARQUBE_JDBC_URL=jdbc:postgresql://sonardb:5432/sonar
-    volumes_from:
-     - sonarqube_serverdata
-  # sonarqube data container
-  sonarqube_serverdata:
-    image: busybox
-    container_name: sonarqube_serverdata
-    command: /bin/sh
-    volumes:
-      - /opt/sonarqube/conf
-      - /opt/sonarqube/data
-      - /opt/sonarqube/extensions
-      - /opt/sonarqube/lib/bundled-plugins
-  # artifactory backend - postgres
-  sonardb:
-    image: docker.bintray.io/postgres:9.5.2
-    container_name: sonardb
-    environment:
-      - POSTGRES_USER=sonar
-      - POSTGRES_PASSWORD=sonar
-    ports:
-     - 5432
-    volumes_from:
-     - sonar_dbdata
-  sonar_dbdata:
-    image: busybox
-    container_name: sonar_dbdata
-    command: /bin/sh
-    volumes:
-      - /var/lib/postgresql/data
