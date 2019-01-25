@@ -1,6 +1,6 @@
 # apps and their ports:
 # portainer: 8080, jenkins: 8081, gogs: 8082, nexus: 8083, sonarqube: 8084
-version: '3'
+version: '2'
 services:
   # portainer
   portainer:
@@ -11,7 +11,8 @@ services:
       - "8080:9000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - portainer_data:/data
+    volumes_from:
+      - data_container
   # jenkins
   jenkins:
     image: jenkins/jenkins:latest
@@ -20,31 +21,40 @@ services:
     user: jenkins
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - jenkins_serverdata:/data
+    volumes_from:
+      - data_container
     environment:
       JENKINS_HOST_HOME: "/data/jenkins_home"
     ports:
       - "8081:8080"
       - "443:443"
   # gogs git server
-  git_server:
+  git_gogs:
     image: gogs/gogs
-    container_name: git_server
+    container_name: git_gogs
     network_mode: default
     ports:
-     - "8082:3000"
-     - "10022:22"
-    volumes:
-     - gogs_conf:/data
+      - "8082:3000"
+      - "10022:22"
+    volumes_from:
+        - data_container
     links:
-     - db:mysql
+      - db:mysql
+  # common db container
+  data_container:
+    image: busybox
+    container_name: data_container
+    network_mode: default
+    command: /bin/sh
+    volumes:
+      - /data
   # sonatype nexus
   nexus:
     image: sonatype/nexus3
     container_name: nexus3
     network_mode: default
-    volumes:
-      - "nexus-data:/nexus-data"
+    volumes_from:
+      - data_container 
     ports:
       - "8083:8081"
   # sonarqube
@@ -60,29 +70,26 @@ services:
       - enviDB_USER=cisuer
       - enviDB_PASS=cipass
       - enviDB_NAME=cistack
-    volumes:
-      - sonarqube_conf:/opt/sonarqube/conf
-      - sonarqube_data:/opt/sonarqube/data
-      - sonarqube_extensions:/opt/sonarqube/extensions
+    volumes_from:
+      - data_container
   # common db
   db:
     image: mariadb
     container_name: db
     network_mode: default
     volumes:
-      - gogs_conf:/var/lib/mysql
+      - db_data:/var/lib/mysql
     ports:
      - "3306:3306"
     environment:
      - MYSQL_ROOT_PASSWORD=root
-     - MYSQL_DATABASE=cidb
-     - MYSQL_USER=ciuser
-     - MYSQL_PASSWORD=cipass
+     - MYSQL_DATABASE=cistack
+     - MYSQL_USER=gogs
+     - MYSQL_PASSWORD=gogs
 volumes:
   portainer_data:
   jenkins_serverdata:
-  gogs_conf:
-  gogs_data:
+  db_data:
   sonarqube_conf:
   sonarqube_data:
   sonarqube_extensions:
