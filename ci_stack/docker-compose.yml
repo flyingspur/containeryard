@@ -18,7 +18,7 @@ services:
     #image: jenkins/jenkins:latest
     # Using my own jenkins docker image so the docker group id from the docker host
     # can be added to the jenkins user in the container
-    image: myjenkins
+    image: jenkins-master
     container_name: jenkins
     network_mode: default
     user: jenkins
