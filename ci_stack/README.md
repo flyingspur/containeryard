@@ -9,7 +9,7 @@ Brings up dockers machine for the following CI components in the mentioned ports
 * sonarqube: 8084
 
 ```docker-machine create -d virtualbox --virtualbox-disk-size "50000" <machine-name>```
-
+```docker-machine create -d generic --generic-ssh-user vagrant --generic-ssh-key ~/.vagrant.d/insecure_private_key --generic-ip-address <ip-address> <machine-name>```
 To fix 0.0.0.0 published address/ports in Portainer:
 ```docker-machine ssh <machine-name>
 vi /etc/init.d/docker
