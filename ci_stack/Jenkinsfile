@@ -1,0 +1,107 @@
+node ("master") {
+    env.BN = VersionNumber([
+				projectStartDate: '2018-03-02', 
+				versionNumberString: '${BUILD_MONTH}.${BUILDS_TODAY}.${BUILD_NUMBER}', 
+				versionPrefix: 'v1', worstResultForIncrement: 'SUCCESS'
+				])
+    stage('Checkout') {
+        echo "Checking out the source code"
+        git branch: 'developer', url: 'http://192.168.61.11:8085/gogs/SpringMVCDemo.git'
+
+        echo 'Change project version'
+        def W_M2_HOME = tool 'Maven'
+        sh label: 'set version number', script: "${W_M2_HOME}/bin/mvn versions:set -DnewVersion=${BN} -DgenerateBackupPoms=false"
+
+        echo "Create a new branch with name release_${BN}"
+        def W_GIT_HOME = tool 'Git'
+        sh label: 'checkout new branch', script: "${W_GIT_HOME} checkout -b release_${BN}" 
+
+        echo "Stash source code"
+        stash includes: '**', name: 'SOURCE_CODE'
+    }
+}
+parallel (
+    UnitTests:{
+        node ("unit-tests") {
+            stage ('Run-ut'){
+                echo 'Unstash source code'
+                unstash 'SOURCE_CODE'
+                
+                echo 'Run unit tests'
+                sh "mvn clean test-compile jacoco:prepare-agent test -Djacoco.destFile=target/jacoco.exec"
+                
+                echo 'Run Jacoco code coverage'
+                step([$class: 'JacocoPublisher', canComputeNew: false, defaultEncoding: '', healthy: '',
+                pattern: '**/target/jacoco.exec', unHealthy: ''])
+                
+                echo 'Stash Jacoco-ut exec ...'
+                stash includes: '**/target/jacoco.exec', name: 'JACOCO_UT'
+            }
+        }
+    },
+    IntegrationTests:{
+        node ("integration-tests") {
+            stage ('Run-it'){
+                echo 'Unstash source code'
+                unstash 'SOURCE_CODE'
+                
+                echo 'Starting Postgres'
+                sh '/etc/init.d/postgresql start'
+        
+                echo 'Run integration tests'
+                sh "mvn clean package -DskipUTs=true jacoco:prepare-agent verify -Djacoco.destFile=target/jacoco-it.exec"
+                
+                echo 'Stash Jacoco-it exec ...'
+                stash includes: '**/target/jacoco-it.exec', name: 'JACOCO_IT'
+            }
+            stage('Publish-Snapshot') {
+                def server = Artifactory.server('artifactory')
+                def rtMaven = Artifactory.newMavenBuild()
+                rtMaven.opts = '-Xms1024m -Xmx2046m'
+                rtMaven.deployer server: server, releaseRepo: 'snapshot-repo', snapshotRepo: 'snapshot-repo'
+                def buildInfo = rtMaven.run pom: 'pom.xml', goals: 'clean install -DskipTests'
+                server.publishBuildInfo buildInfo
+            }
+        }
+    },
+    failFast: true
+)
+node ("integration-tests") {
+    stage('SCA') {
+        echo 'Unstash source code'
+        unstash 'SOURCE_CODE'
+        
+        echo 'Run test compile'
+        sh "mvn clean test-compile"
+    }
+
+    parallel Findbugs:{
+        sh "mvn findbugs:findbugs"
+        step([$class: 'FindBugsPublisher', canComputeNew: false, defaultEncoding: '', healthy: '', excludePattern: '', includePattern: '',
+        pattern: '**/target/findbugsXml.xml', unHealthy: ''])
+    },
+    Checkstyle:{
+        sh "mvn checkstyle:check"
+        step([$class: 'CheckStylePublisher', canComputeNew: false, defaultEncoding: '', healthy: '',
+        pattern: '**/target/checkstyle-result.xml', unHealthy: ''])
+    },
+    Pmd:{
+        sh "mvn pmd:pmd"
+        step([$class: 'PmdPublisher', canComputeNew: false, defaultEncoding: '', healthy: '',
+        pattern: '**/target/pmd.xml', unHealthy: ''])
+    },
+    TaskScanner:{
+        step([$class: 'TasksPublisher', canComputeNew: false, defaultEncoding: '', healthy: '', low: '', high: 'TODO, TO DO,FIXME',
+        pattern: '**/*.java', unHealthy: ''])
+    },
+    failFast: false
+}
+node ("sonar") {
+    stage('Run-Sonar') {
+        unstash 'SOURCE_CODE'
+        unstash 'JACOCO_UT'
+        unstash 'JACOCO_IT'
+    
+        sh "mvn test-compile org.sonarsource.scanner.maven:sonar-maven-plugin:RELEASE:sonar -Dsonar.host.url=http://192.168.61.11:8084 -Dmaven.clean.skip=true"
+    }
+}
